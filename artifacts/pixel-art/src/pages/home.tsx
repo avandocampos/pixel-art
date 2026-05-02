@@ -39,6 +39,235 @@ function PaletteCard({ palette, selected, onClick }: { palette: LospecPalette; s
   );
 }
 
+function SidebarContent({
+  options, faceApiAvailable, faceDetecting, faceRegions, originalUrl,
+  activeStylePreset, selectedPalette, paletteTab, lospecInput, lospecError,
+  isFetchingPalette, customHexInput, allLospecPalettes,
+  updateOption, applyStylePreset, setPaletteTab, setLospecInput, setLospecError,
+  fetchLospec, setCustomHexInput, applyCustomHex, applyPalette, clearPalette,
+}: {
+  options: PixelArtOptions;
+  faceApiAvailable: boolean | null;
+  faceDetecting: boolean;
+  faceRegions: FaceRegion[];
+  originalUrl: string | null;
+  activeStylePreset: string | null;
+  selectedPalette: LospecPalette | null;
+  paletteTab: PaletteTab;
+  lospecInput: string;
+  lospecError: string | null;
+  isFetchingPalette: boolean;
+  customHexInput: string;
+  allLospecPalettes: LospecPalette[];
+  updateOption: <K extends keyof PixelArtOptions>(key: K, value: PixelArtOptions[K]) => void;
+  applyStylePreset: (p: (typeof STYLE_PRESETS)[0]) => void;
+  setPaletteTab: (t: PaletteTab) => void;
+  setLospecInput: (v: string) => void;
+  setLospecError: (v: string | null) => void;
+  fetchLospec: () => void;
+  setCustomHexInput: (v: string) => void;
+  applyCustomHex: () => void;
+  applyPalette: (p: LospecPalette | null) => void;
+  clearPalette: () => void;
+}) {
+  return (
+    <div className="p-4 space-y-5">
+      {/* Style Presets */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Style Presets</p>
+        <div className="flex flex-wrap gap-1.5">
+          {STYLE_PRESETS.map((p) => (
+            <button key={p.name} onClick={() => applyStylePreset(p)}
+              className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${activeStylePreset === p.name ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50 hover:bg-muted"}`}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Face Detection Status */}
+      <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Face & Detail AI</p>
+          {faceApiAvailable === true && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 border border-green-500/20 font-medium">API Active</span>
+          )}
+          {faceApiAvailable === false && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-medium">Fallback</span>
+          )}
+        </div>
+        {faceDetecting && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+            Detecting faces &amp; features…
+          </div>
+        )}
+        {!faceDetecting && faceRegions.length > 0 && (
+          <div className="text-xs text-primary font-medium flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+            </svg>
+            {faceRegions.length} face{faceRegions.length > 1 ? "s" : ""} detected
+          </div>
+        )}
+        {!faceDetecting && faceRegions.length === 0 && originalUrl && (
+          <p className="text-xs text-muted-foreground">No faces found — using multi-scale detail map</p>
+        )}
+        {!originalUrl && (
+          <p className="text-xs text-muted-foreground">Detects eyes, nose, mouth, fur texture automatically</p>
+        )}
+        <div className="space-y-2 pt-1">
+          <div className="flex justify-between items-center">
+            <Label className="text-xs font-medium">Detail Boost</Label>
+            <Badge variant="secondary" className="font-mono text-xs">{Math.round(options.detailBoost * 100)}%</Badge>
+          </div>
+          <Slider min={0} max={1} step={0.05} value={[options.detailBoost]} onValueChange={([v]) => updateOption("detailBoost", v)} />
+          <p className="text-[10px] text-muted-foreground">How aggressively to zoom into fine features</p>
+        </div>
+        <div className="space-y-2 pt-1">
+          <div className="flex justify-between items-center">
+            <Label className="text-xs font-medium">Min Pixel Size</Label>
+            <Badge variant="secondary" className="font-mono text-xs">{options.minBlockSize}px</Badge>
+          </div>
+          <Slider min={1} max={8} step={1} value={[options.minBlockSize]} onValueChange={([v]) => updateOption("minBlockSize", v)} />
+          <p className="text-[10px] text-muted-foreground">Smallest pixel allowed in detail areas</p>
+        </div>
+      </div>
+
+      {/* Pixel Size */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <Label className="text-sm font-medium">Base Pixel Size</Label>
+          <Badge variant="secondary" className="font-mono text-xs">{options.blockSize}px</Badge>
+        </div>
+        <Slider min={2} max={32} step={1} value={[options.blockSize]} onValueChange={([v]) => updateOption("blockSize", v)} />
+        <p className="text-xs text-muted-foreground">Starting block size — detail areas go smaller</p>
+      </div>
+
+      {!options.customPalette && (
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label className="text-sm font-medium">Auto Palette</Label>
+            <Badge variant="secondary" className="font-mono text-xs">{options.paletteSize} colors</Badge>
+          </div>
+          <Slider min={4} max={128} step={2} value={[options.paletteSize]} onValueChange={([v]) => updateOption("paletteSize", v)} />
+          <p className="text-xs text-muted-foreground">Extracted from your image</p>
+        </div>
+      )}
+
+      {/* Edge Strength */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <Label className="text-sm font-medium">Edge Sensitivity</Label>
+          <Badge variant="secondary" className="font-mono text-xs">{Math.round(options.edgeStrength * 100)}%</Badge>
+        </div>
+        <Slider min={0.05} max={0.9} step={0.05} value={[options.edgeStrength]} onValueChange={([v]) => updateOption("edgeStrength", v)} />
+        <p className="text-xs text-muted-foreground">Sobel + Laplacian multi-scale edge detection</p>
+      </div>
+
+      {/* Toggles */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label htmlFor="outline" className="text-sm font-medium cursor-pointer">Edge Outlines</Label>
+            <p className="text-xs text-muted-foreground">Darken detected edge pixels</p>
+          </div>
+          <Switch id="outline" checked={options.outlineEdges} onCheckedChange={(v) => updateOption("outlineEdges", v)} />
+        </div>
+        {options.outlineEdges && (
+          <div className="flex items-center justify-between pl-1">
+            <Label htmlFor="outlineColor" className="text-sm text-muted-foreground">Outline Color</Label>
+            <input id="outlineColor" type="color" value={options.outlineColor}
+              onChange={(e) => updateOption("outlineColor", e.target.value)}
+              className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent" />
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <Label htmlFor="contrast" className="text-sm font-medium cursor-pointer">Enhance Contrast</Label>
+            <p className="text-xs text-muted-foreground">Boost light/dark separation</p>
+          </div>
+          <Switch id="contrast" checked={options.enhanceContrast} onCheckedChange={(v) => updateOption("enhanceContrast", v)} />
+        </div>
+      </div>
+
+      {/* Palette Picker */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Color Palette</p>
+          {selectedPalette && (
+            <button onClick={clearPalette} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors">Clear</button>
+          )}
+        </div>
+        {selectedPalette && (
+          <div className="mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
+            <div className="flex flex-wrap gap-0.5 mb-1">
+              {selectedPalette.colors.slice(0, 40).map((c, i) => <ColorSwatch key={i} color={c} />)}
+            </div>
+            <p className="text-xs font-medium">{selectedPalette.name}</p>
+            <p className="text-[10px] text-muted-foreground">{selectedPalette.colors.length} colors active</p>
+          </div>
+        )}
+        <div className="flex rounded-md border border-border overflow-hidden text-xs mb-3">
+          {(["builtin", "lospec", "custom"] as PaletteTab[]).map((tab) => (
+            <button key={tab} onClick={() => setPaletteTab(tab)}
+              className={`flex-1 py-1.5 capitalize transition-colors ${paletteTab === tab ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}>
+              {tab === "builtin" ? "Built-in" : tab === "lospec" ? "Lospec" : "Custom"}
+            </button>
+          ))}
+        </div>
+        {paletteTab === "builtin" && (
+          <div className="space-y-1.5 max-h-72 overflow-y-auto pr-0.5">
+            {allLospecPalettes.map((palette) => (
+              <PaletteCard key={palette.slug ?? palette.name} palette={palette}
+                selected={selectedPalette?.name === palette.name}
+                onClick={() => selectedPalette?.name === palette.name ? clearPalette() : applyPalette(palette)} />
+            ))}
+          </div>
+        )}
+        {paletteTab === "lospec" && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Paste a palette name or URL from{" "}
+              <a href="https://lospec.com/palette-list" target="_blank" rel="noopener noreferrer" className="text-primary underline">lospec.com/palette-list</a>
+            </p>
+            <div className="flex gap-2">
+              <input type="text" value={lospecInput} onChange={(e) => { setLospecInput(e.target.value); setLospecError(null); }}
+                onKeyDown={(e) => e.key === "Enter" && fetchLospec()}
+                placeholder="e.g. pico-8 or full URL"
+                className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+              <Button size="sm" onClick={fetchLospec} disabled={isFetchingPalette || !lospecInput.trim()} className="text-xs shrink-0">
+                {isFetchingPalette ? <span className="w-3 h-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin inline-block" /> : "Load"}
+              </Button>
+            </div>
+            {lospecError && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1.5">{lospecError}</p>}
+          </div>
+        )}
+        {paletteTab === "custom" && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Paste hex colors separated by spaces, commas, or newlines.</p>
+            <textarea value={customHexInput} onChange={(e) => setCustomHexInput(e.target.value)}
+              placeholder={"#ff004d #ffa300 #ffec27\n#00e436 #29adff ..."}
+              rows={5} className="w-full text-xs px-2.5 py-2 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono resize-none" />
+            {customHexInput.trim() && (() => {
+              const colors = parseHexList(customHexInput);
+              return colors.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {colors.map((c, i) => <ColorSwatch key={i} color={c} />)}
+                  <span className="text-[10px] text-muted-foreground self-center ml-1">{colors.length} colors</span>
+                </div>
+              ) : null;
+            })()}
+            <Button size="sm" className="w-full text-xs" onClick={applyCustomHex} disabled={!customHexInput.trim()}>
+              Apply Custom Palette
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [options, setOptions] = useState<PixelArtOptions>({ ...DEFAULT_OPTIONS });
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
@@ -47,6 +276,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [activeStylePreset, setActiveStylePreset] = useState<string | null>(null);
+  const [controlsOpen, setControlsOpen] = useState(false);
 
   const [faceRegions, setFaceRegions] = useState<FaceRegion[]>([]);
   const [faceDetecting, setFaceDetecting] = useState(false);
@@ -201,279 +431,86 @@ export default function Home() {
 
   const allLospecPalettes = [...fetchedPalettes, ...BUILTIN_PALETTES];
 
+  const sidebarProps = {
+    options, faceApiAvailable, faceDetecting, faceRegions, originalUrl,
+    activeStylePreset, selectedPalette, paletteTab, lospecInput, lospecError,
+    isFetchingPalette, customHexInput, allLospecPalettes,
+    updateOption, applyStylePreset, setPaletteTab, setLospecInput, setLospecError,
+    fetchLospec, setCustomHexInput, applyCustomHex, applyPalette, clearPalette,
+  };
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
+    <div className="min-h-screen max-w-full bg-background text-foreground flex flex-col overflow-hidden">
+      {/* Header */}
+      <header className="border-b border-border px-3 sm:px-6 py-3 flex items-center justify-between shrink-0 gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center shrink-0">
             <span className="text-primary-foreground font-bold text-sm font-mono">PX</span>
           </div>
-          <div>
-            <h1 className="font-bold text-base leading-none">PixelForge</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">AI edge-aware pixel art converter</p>
+          <div className="min-w-0">
+            <h1 className="font-bold text-base leading-none truncate">PixelForge</h1>
+            <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">AI edge-aware pixel art converter</p>
           </div>
         </div>
-        {resultUrl && <Button onClick={downloadResult} size="sm">Download PNG</Button>}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Controls toggle — visible only on mobile */}
+          <button
+            className="md:hidden flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border bg-background hover:bg-muted transition-colors"
+            onClick={() => setControlsOpen((v) => !v)}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+            </svg>
+            Controls
+          </button>
+          {resultUrl && <Button onClick={downloadResult} size="sm" className="text-xs">Download</Button>}
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-72 border-r border-border bg-card flex flex-col shrink-0 overflow-y-auto">
-          <div className="p-4 space-y-5">
-
-            {/* Style Presets */}
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Style Presets</p>
-              <div className="flex flex-wrap gap-1.5">
-                {STYLE_PRESETS.map((p) => (
-                  <button key={p.name} onClick={() => applyStylePreset(p)}
-                    className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${activeStylePreset === p.name ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50 hover:bg-muted"}`}>
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Face Detection Status */}
-            <div className="rounded-lg border border-border p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Face & Detail AI</p>
-                {faceApiAvailable === true && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 border border-green-500/20 font-medium">API Active</span>
-                )}
-                {faceApiAvailable === false && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-medium">Fallback</span>
-                )}
-              </div>
-
-              {faceDetecting && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
-                  Detecting faces &amp; features…
-                </div>
-              )}
-              {!faceDetecting && faceRegions.length > 0 && (
-                <div className="text-xs text-primary font-medium flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
-                  </svg>
-                  {faceRegions.length} face{faceRegions.length > 1 ? "s" : ""} detected — features preserved
-                </div>
-              )}
-              {!faceDetecting && faceRegions.length === 0 && originalUrl && !faceDetecting && (
-                <p className="text-xs text-muted-foreground">No faces found — using multi-scale detail map</p>
-              )}
-              {!originalUrl && (
-                <p className="text-xs text-muted-foreground">Detects eyes, nose, mouth, fur texture automatically</p>
-              )}
-
-              {/* Detail Boost */}
-              <div className="space-y-2 pt-1">
-                <div className="flex justify-between items-center">
-                  <Label className="text-xs font-medium">Detail Boost</Label>
-                  <Badge variant="secondary" className="font-mono text-xs">{Math.round(options.detailBoost * 100)}%</Badge>
-                </div>
-                <Slider min={0} max={1} step={0.05} value={[options.detailBoost]}
-                  onValueChange={([v]) => updateOption("detailBoost", v)} />
-                <p className="text-[10px] text-muted-foreground">How aggressively to zoom into fine features</p>
-              </div>
-
-              {/* Min Block Size */}
-              <div className="space-y-2 pt-1">
-                <div className="flex justify-between items-center">
-                  <Label className="text-xs font-medium">Min Pixel Size</Label>
-                  <Badge variant="secondary" className="font-mono text-xs">{options.minBlockSize}px</Badge>
-                </div>
-                <Slider min={1} max={8} step={1} value={[options.minBlockSize]}
-                  onValueChange={([v]) => updateOption("minBlockSize", v)} />
-                <p className="text-[10px] text-muted-foreground">Smallest pixel allowed in detail areas</p>
-              </div>
-            </div>
-
-            {/* Pixel Size */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-sm font-medium">Base Pixel Size</Label>
-                <Badge variant="secondary" className="font-mono text-xs">{options.blockSize}px</Badge>
-              </div>
-              <Slider min={2} max={32} step={1} value={[options.blockSize]}
-                onValueChange={([v]) => updateOption("blockSize", v)} />
-              <p className="text-xs text-muted-foreground">Starting block size — detail areas go smaller</p>
-            </div>
-
-            {/* Auto Palette size */}
-            {!options.customPalette && (
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-sm font-medium">Auto Palette</Label>
-                  <Badge variant="secondary" className="font-mono text-xs">{options.paletteSize} colors</Badge>
-                </div>
-                <Slider min={4} max={128} step={2} value={[options.paletteSize]}
-                  onValueChange={([v]) => updateOption("paletteSize", v)} />
-                <p className="text-xs text-muted-foreground">Extracted from your image</p>
-              </div>
-            )}
-
-            {/* Edge Strength */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-sm font-medium">Edge Sensitivity</Label>
-                <Badge variant="secondary" className="font-mono text-xs">{Math.round(options.edgeStrength * 100)}%</Badge>
-              </div>
-              <Slider min={0.05} max={0.9} step={0.05} value={[options.edgeStrength]}
-                onValueChange={([v]) => updateOption("edgeStrength", v)} />
-              <p className="text-xs text-muted-foreground">Sobel + Laplacian multi-scale edge detection</p>
-            </div>
-
-            {/* Toggles */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="outline" className="text-sm font-medium cursor-pointer">Edge Outlines</Label>
-                  <p className="text-xs text-muted-foreground">Darken detected edge pixels</p>
-                </div>
-                <Switch id="outline" checked={options.outlineEdges} onCheckedChange={(v) => updateOption("outlineEdges", v)} />
-              </div>
-              {options.outlineEdges && (
-                <div className="flex items-center justify-between pl-1">
-                  <Label htmlFor="outlineColor" className="text-sm text-muted-foreground">Outline Color</Label>
-                  <input id="outlineColor" type="color" value={options.outlineColor}
-                    onChange={(e) => updateOption("outlineColor", e.target.value)}
-                    className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent" />
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="contrast" className="text-sm font-medium cursor-pointer">Enhance Contrast</Label>
-                  <p className="text-xs text-muted-foreground">Boost light/dark separation</p>
-                </div>
-                <Switch id="contrast" checked={options.enhanceContrast} onCheckedChange={(v) => updateOption("enhanceContrast", v)} />
-              </div>
-            </div>
-
-            {/* Palette Picker */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Color Palette</p>
-                {selectedPalette && (
-                  <button onClick={clearPalette} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors">Clear</button>
-                )}
-              </div>
-
-              {selectedPalette && (
-                <div className="mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
-                  <div className="flex flex-wrap gap-0.5 mb-1">
-                    {selectedPalette.colors.slice(0, 40).map((c, i) => <ColorSwatch key={i} color={c} />)}
-                  </div>
-                  <p className="text-xs font-medium">{selectedPalette.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{selectedPalette.colors.length} colors active</p>
-                </div>
-              )}
-
-              <div className="flex rounded-md border border-border overflow-hidden text-xs mb-3">
-                {(["builtin", "lospec", "custom"] as PaletteTab[]).map((tab) => (
-                  <button key={tab} onClick={() => setPaletteTab(tab)}
-                    className={`flex-1 py-1.5 capitalize transition-colors ${paletteTab === tab ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}>
-                    {tab === "builtin" ? "Built-in" : tab === "lospec" ? "Lospec" : "Custom"}
-                  </button>
-                ))}
-              </div>
-
-              {paletteTab === "builtin" && (
-                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-0.5">
-                  {allLospecPalettes.map((palette) => (
-                    <PaletteCard key={palette.slug ?? palette.name} palette={palette}
-                      selected={selectedPalette?.name === palette.name}
-                      onClick={() => selectedPalette?.name === palette.name ? clearPalette() : applyPalette(palette)} />
-                  ))}
-                </div>
-              )}
-
-              {paletteTab === "lospec" && (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Paste a palette name or URL from{" "}
-                    <a href="https://lospec.com/palette-list" target="_blank" rel="noopener noreferrer" className="text-primary underline">lospec.com/palette-list</a>
-                  </p>
-                  <div className="flex gap-2">
-                    <input type="text" value={lospecInput} onChange={(e) => { setLospecInput(e.target.value); setLospecError(null); }}
-                      onKeyDown={(e) => e.key === "Enter" && fetchLospec()}
-                      placeholder="e.g. pico-8 or full URL"
-                      className="flex-1 text-xs px-2.5 py-1.5 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
-                    <Button size="sm" onClick={fetchLospec} disabled={isFetchingPalette || !lospecInput.trim()} className="text-xs">
-                      {isFetchingPalette ? <span className="w-3 h-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin inline-block" /> : "Load"}
-                    </Button>
-                  </div>
-                  {lospecError && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1.5">{lospecError}</p>}
-                  {fetchedPalettes.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Loaded</p>
-                      {fetchedPalettes.map((p) => (
-                        <PaletteCard key={p.slug ?? p.name} palette={p} selected={selectedPalette?.name === p.name}
-                          onClick={() => selectedPalette?.name === p.name ? clearPalette() : applyPalette(p)} />
-                      ))}
-                    </div>
-                  )}
-                  <div className="text-[11px] text-muted-foreground bg-muted/50 rounded-md p-2.5 leading-relaxed space-y-1">
-                    <p className="font-medium">How to use:</p>
-                    <p>1. Browse <span className="font-mono">lospec.com/palette-list</span></p>
-                    <p>2. Copy the slug (e.g. <span className="font-mono">sweetie-16</span>) or full URL</p>
-                    <p>3. Paste above and click Load</p>
-                  </div>
-                </div>
-              )}
-
-              {paletteTab === "custom" && (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">Paste hex colors separated by spaces, commas, or newlines.</p>
-                  <textarea value={customHexInput} onChange={(e) => setCustomHexInput(e.target.value)}
-                    placeholder={"#ff004d #ffa300 #ffec27\n#00e436 #29adff ..."}
-                    rows={5} className="w-full text-xs px-2.5 py-2 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono resize-none" />
-                  {customHexInput.trim() && (() => {
-                    const colors = parseHexList(customHexInput);
-                    return colors.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {colors.map((c, i) => <ColorSwatch key={i} color={c} />)}
-                        <span className="text-[10px] text-muted-foreground self-center ml-1">{colors.length} colors</span>
-                      </div>
-                    ) : null;
-                  })()}
-                  <Button size="sm" className="w-full text-xs" onClick={applyCustomHex} disabled={!customHexInput.trim()}>
-                    Apply Custom Palette
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Sidebar — desktop always visible, mobile hidden */}
+        <aside className="hidden md:flex flex-col w-72 border-r border-border bg-card shrink-0 overflow-y-auto">
+          <SidebarContent {...sidebarProps} />
         </aside>
 
-        <main className="flex-1 flex flex-col overflow-hidden bg-background">
+        {/* Main area */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          {/* Mobile controls drawer */}
+          {controlsOpen && (
+            <div className="md:hidden flex flex-col border-b border-border bg-card overflow-y-auto" style={{ maxHeight: "55vh" }}>
+              <SidebarContent {...sidebarProps} />
+            </div>
+          )}
+
+          {/* Canvas area */}
           {!originalUrl ? (
             <div
-              className={`flex-1 flex flex-col items-center justify-center p-8 transition-colors ${isDragging ? "bg-primary/5 border-2 border-dashed border-primary rounded-xl m-4" : ""}`}
+              className={`flex-1 flex flex-col items-center justify-center p-6 transition-colors ${isDragging ? "bg-primary/5 border-2 border-dashed border-primary rounded-xl m-4" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
             >
-              <div className="max-w-md text-center space-y-6">
-                <div className="mx-auto w-20 h-20 rounded-2xl bg-muted flex items-center justify-center">
-                  <svg className="w-10 h-10 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="max-w-sm w-full text-center space-y-5">
+                <div className="mx-auto w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-muted flex items-center justify-center">
+                  <svg className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold">Drop an image here</h2>
+                  <h2 className="text-lg sm:text-xl font-semibold">Drop an image here</h2>
                   <p className="text-muted-foreground text-sm mt-1">
                     Face AI runs automatically — eyes, nose, mouth, and fine textures get extra pixel detail.
                   </p>
                 </div>
-                <Button onClick={() => fileInputRef.current?.click()} size="lg">Choose Image</Button>
+                <Button onClick={() => fileInputRef.current?.click()} size="lg" className="w-full sm:w-auto">Choose Image</Button>
                 <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP, GIF</p>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="border-b border-border px-4 py-2 flex items-center gap-3 shrink-0 flex-wrap">
+              {/* Toolbar */}
+              <div className="border-b border-border px-3 py-2 flex items-center gap-2 shrink-0 flex-wrap">
                 <div className="flex rounded-lg border border-border overflow-hidden text-sm">
                   <button onClick={() => setShowOriginal(false)}
                     className={`px-3 py-1.5 transition-colors ${!showOriginal ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}>
@@ -484,40 +521,37 @@ export default function Home() {
                     Original
                   </button>
                 </div>
-
                 {faceRegions.length > 0 && (
                   <span className="text-xs flex items-center gap-1 text-green-600 font-medium">
                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                       <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                     </svg>
-                    {faceRegions.length} face{faceRegions.length > 1 ? "s" : ""} detected
+                    {faceRegions.length} face{faceRegions.length > 1 ? "s" : ""}
                   </span>
                 )}
-
                 {selectedPalette && (
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20 text-xs text-primary font-medium">
-                    <div className="flex gap-0.5">
-                      {selectedPalette.colors.slice(0, 8).map((c, i) => <ColorSwatch key={i} color={c} />)}
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 border border-primary/20 text-xs text-primary font-medium min-w-0">
+                    <div className="flex gap-0.5 shrink-0">
+                      {selectedPalette.colors.slice(0, 6).map((c, i) => <ColorSwatch key={i} color={c} />)}
                     </div>
-                    {selectedPalette.name}
+                    <span className="truncate">{selectedPalette.name}</span>
                   </div>
                 )}
-
-                <button onClick={() => fileInputRef.current?.click()} className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto">
+                <button onClick={() => fileInputRef.current?.click()} className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto shrink-0">
                   Change image
                 </button>
-
                 {(isProcessing || faceDetecting) && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
                     <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    {faceDetecting ? "Detecting faces…" : "Processing…"}
+                    {faceDetecting ? "Detecting…" : "Processing…"}
                   </div>
                 )}
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
               </div>
 
-              <div className="flex-1 overflow-auto p-6 flex items-center justify-center bg-[repeating-conic-gradient(#80808015_0%_25%,transparent_0%_50%)] bg-[length:20px_20px]">
+              {/* Image display */}
+              <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-[repeating-conic-gradient(#80808015_0%_25%,transparent_0%_50%)] bg-[length:20px_20px]">
                 {showOriginal ? (
                   <img src={originalUrl} alt="Original" className="max-w-full max-h-full object-contain shadow-xl rounded-sm" style={{ imageRendering: "auto" }} />
                 ) : resultUrl ? (
@@ -525,13 +559,13 @@ export default function Home() {
                 ) : (
                   <div className="flex items-center gap-3 text-muted-foreground">
                     <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm">{faceDetecting ? "Detecting faces and features…" : "Generating pixel art…"}</span>
+                    <span className="text-sm">{faceDetecting ? "Detecting faces…" : "Generating pixel art…"}</span>
                   </div>
                 )}
               </div>
             </div>
           )}
-        </main>
+        </div>
       </div>
 
       <canvas ref={hiddenCanvasRef} className="hidden" />
