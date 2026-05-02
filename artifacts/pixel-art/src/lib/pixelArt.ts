@@ -5,6 +5,7 @@ export interface PixelArtOptions {
   enhanceContrast: boolean;
   outlineEdges: boolean;
   outlineColor: string;
+  customPalette?: [number, number, number][];
 }
 
 export const DEFAULT_OPTIONS: PixelArtOptions = {
@@ -14,6 +15,7 @@ export const DEFAULT_OPTIONS: PixelArtOptions = {
   enhanceContrast: true,
   outlineEdges: true,
   outlineColor: "#000000",
+  customPalette: undefined,
 };
 
 function rgbToLab(r: number, g: number, b: number): [number, number, number] {
@@ -147,7 +149,7 @@ export function convertToPixelArt(
   sourceCanvas: HTMLCanvasElement,
   options: PixelArtOptions
 ): HTMLCanvasElement {
-  const { blockSize, paletteSize, edgeStrength, enhanceContrast, outlineEdges, outlineColor } = options;
+  const { blockSize, paletteSize, edgeStrength, enhanceContrast, outlineEdges, outlineColor, customPalette } = options;
 
   const srcCtx = sourceCanvas.getContext("2d")!;
   const width = sourceCanvas.width;
@@ -165,7 +167,10 @@ export function convertToPixelArt(
 
   const edges = applySobel(gray, width, height);
 
-  const palette = buildPalette(imageData, paletteSize);
+  const palette: [number, number, number][] =
+    customPalette && customPalette.length > 0
+      ? customPalette
+      : buildPalette(imageData, paletteSize);
 
   const outCanvas = document.createElement("canvas");
   const blocksX = Math.ceil(width / blockSize);
