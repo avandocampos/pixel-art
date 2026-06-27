@@ -47,3 +47,14 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.config/
+.upm/
+.breakpoints
+.replit
+.replitignore
+.replit-artifact/
+**/.replit-artifact/
+
+# Agent / local tooling state
+.agents/
+.claude/
